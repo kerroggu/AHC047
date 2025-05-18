@@ -279,6 +279,98 @@ static void build_multi_k_seq(const vector<string>& S, const vector<int>& ord,
     }
 }
 
+// Embed the top `k` strings sequentially. For each consecutive pair `x`,`y` in
+// a string, search for a state representing `x`. If it does not exist, create a
+// new state if possible and connect it to `y`. If `x -> y` already exists, move
+// on. If `x` has fewer than two outgoing edges, add the transition. Otherwise,
+// create a new state for `x` and add the edge if states remain. All inserted
+// edges get probability `prob` (default 41). Remaining probabilities are
+// distributed uniformly.
+static void build_embed_k(const vector<string>& S, const vector<int>& ord,
+                          int k, int prob, vector<char>& C,
+                          vector<vector<int>>& A) {
+    const int M = C.size();
+    vector<vector<int>> B(M, vector<int>(M, -1));
+    vector<char> letters(M, '?');
+
+    int used = 0; // number of defined states
+
+    auto find_state = [&](char ch) -> int {
+        for (int i = 0; i < used; i++) if (letters[i] == ch) return i;
+        return -1;
+    };
+    auto add_state = [&](char ch) -> int {
+        if (used >= M) return -1;
+        letters[used] = ch;
+        return used++;
+    };
+
+    int use = min(k, (int)S.size());
+    for (int t = 0; t < use; t++) {
+        const string& str = S[ord[t]];
+        int L = str.size();
+        for (int i = 0; i < L; i++) {
+            char x = str[i];
+            char y = str[(i + 1) % L];
+
+            int sx = find_state(x);
+            if (sx == -1) {
+                sx = add_state(x);
+                if (sx == -1) continue;
+            }
+
+            int sy = find_state(y);
+            if (sy == -1) {
+                sy = add_state(y);
+                if (sy == -1) continue;
+            }
+
+            if (B[sx][sy] != -1) continue; // already exists
+
+            int out_cnt = 0;
+            for (int j = 0; j < M; j++) if (B[sx][j] != -1) out_cnt++;
+
+            if (out_cnt < 2) {
+                B[sx][sy] = prob;
+            } else if (out_cnt >= 2) {
+                int nx = add_state(x);
+                if (nx == -1) continue;
+                if (B[nx][sy] == -1) B[nx][sy] = prob;
+            }
+        }
+    }
+
+    // fill unused states with characters from the best string
+    const string& base = S[ord[0]];
+    for (int i = used; i < M; i++) letters[i] = base[i % (int)base.size()];
+
+    // finalize transitions
+    for (int i = 0; i < M; i++) {
+        vector<int> row(M, 0);
+        int sum = 0;
+        for (int j = 0; j < M; j++) {
+            if (B[i][j] != -1) {
+                row[j] = B[i][j];
+                sum += row[j];
+            }
+        }
+        int rem = 100 - sum;
+        vector<int> others;
+        for (int j = 0; j < M; j++) {
+            if (row[j] == 0) others.push_back(j);
+        }
+        if (others.empty()) {
+            row[(i + 1) % M] += rem;
+        } else {
+            int m = others.size();
+            for (int t = 0; t < m; t++) row[others[t]] += rem / m;
+            for (int t = 0; t < rem % m; t++) row[others[t]] += 1;
+        }
+        C[i] = letters[i];
+        A[i] = row;
+    }
+}
+
 // Multiply matrices (n x n) of doubles.
 static vector<vector<double>> mul(const vector<vector<double>>& A,
                                   const vector<vector<double>>& B) {
@@ -431,6 +523,20 @@ int main() {
         vector<char> Ck(M);
         vector<vector<int>> Ak(M, vector<int>(M, 0));
         build_multi_k_seq(S, ord, k, Ck, Ak);
+        long long sc = compute_score(S, P, L, Ck, Ak);
+        if (sc > bestScore) {
+            bestScore = sc;
+            bestC = Ck;
+            bestA = Ak;
+        }
+    }
+
+    // Embedding approach described in the task
+    for (int k = 2; k <= 5; k++) {
+        if (k > N) break;
+        vector<char> Ck(M);
+        vector<vector<int>> Ak(M, vector<int>(M, 0));
+        build_embed_k(S, ord, k, 41, Ck, Ak);
         long long sc = compute_score(S, P, L, Ck, Ak);
         if (sc > bestScore) {
             bestScore = sc;
