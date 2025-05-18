@@ -1,24 +1,112 @@
 #include <bits/stdc++.h>
 using namespace std;
-int main(){
+
+// Build a 6-state automaton for a single string.
+// `start` is the state index offset for this string.
+// `other_first` is the first state index of the other string.
+static void build(const string& s, int start, int other_first,
+                  vector<char>& C, vector<vector<int>>& A) {
+    const int M = 12;
+
+    // Collect unique letters used in the string.
+    vector<char> letters;
+    vector<int> seen(6, 0);
+    for (char ch : s) {
+        int id = ch - 'a';
+        if (!seen[id]) {
+            letters.push_back(ch);
+            seen[id] = 1;
+        }
+    }
+    if (letters.empty()) letters.push_back('a');
+    int K = letters.size();
+
+    // Assign 6 states by repeating the used letters.
+    vector<char> states(6);
+    for (int i = 0; i < 6; i++) {
+        states[i] = letters[i % K];
+        C[start + i] = states[i];
+    }
+
+    // Map each letter to the first corresponding state index.
+    vector<int> char_to_state(6, -1);
+    for (int i = 0; i < 6; i++) {
+        int id = states[i] - 'a';
+        if (char_to_state[id] == -1) char_to_state[id] = start + i;
+    }
+
+    // Determine possible next letters for each letter (cyclic).
+    vector<set<char>> nxt(6);
+    for (size_t i = 0; i < s.size(); i++) {
+        char cur = s[i];
+        char nx = s[(i + 1) % s.size()];
+        nxt[cur - 'a'].insert(nx);
+    }
+
+    for (int i = 0; i < 6; i++) {
+        int idx = start + i;
+        vector<int> row(M, 0);
+
+        // 1% chance to jump to the beginning of the other string.
+        row[other_first] = 1;
+        int remaining = 99; // remaining probability mass
+
+        char c = states[i];
+        vector<char> options(nxt[c - 'a'].begin(), nxt[c - 'a'].end());
+        if (options.size() > 3) options.resize(3);
+        int k = options.size();
+        int prob = (k == 3 ? 33 : 41);
+        for (int t = 0; t < k; t++) {
+            int dest = char_to_state[options[t] - 'a'];
+            if (dest == -1) dest = start; // fallback
+            row[dest] += prob;
+            remaining -= prob;
+        }
+
+        // Distribute the rest evenly among the other 5 states in this group.
+        vector<int> others;
+        for (int j = 0; j < 6; j++) {
+            if (j != i) others.push_back(start + j);
+        }
+        for (int t = 0; t < 5; t++) {
+            row[others[t]] += remaining / 5;
+            if (t < remaining % 5) row[others[t]] += 1;
+        }
+
+        A[idx] = row;
+    }
+}
+
+int main() {
     ios::sync_with_stdio(false);
     cin.tie(nullptr);
-    int N,M; long long L;
-    if(!(cin>>N>>M>>L)) return 0;
-    vector<string>S(N); vector<int>P(N);
-    for(int i=0;i<N;i++) cin>>S[i]>>P[i];
-    int best=0;
-    for(int i=1;i<N;i++) if(P[i]>P[best]) best=i;
-    string T=S[best];
-    int Ls=T.size();
-    for(int i=0;i<M;i++){
-        char c=T[i%Ls];
-        int next=(i+1)%Ls; // deterministic cycle over best string
-        cout<<c;
-        for(int j=0;j<M;j++){
-            cout<<' '<<(j==next?100:0);
+
+    int N, M;
+    long long L;
+    if (!(cin >> N >> M >> L)) return 0;
+    vector<string> S(N);
+    vector<int> P(N);
+    for (int i = 0; i < N; i++) cin >> S[i] >> P[i];
+
+    // Find indices of the top two scoring strings.
+    vector<int> ord(N);
+    iota(ord.begin(), ord.end(), 0);
+    sort(ord.begin(), ord.end(), [&](int a, int b) { return P[a] > P[b]; });
+    int idx1 = ord[0];
+    int idx2 = ord.size() >= 2 ? ord[1] : ord[0];
+
+    vector<char> C(M);
+    vector<vector<int>> A(M, vector<int>(M, 0));
+
+    build(S[idx1], 0, 6, C, A);  // states 0..5
+    build(S[idx2], 6, 0, C, A);  // states 6..11
+
+    for (int i = 0; i < M; i++) {
+        cout << C[i];
+        for (int j = 0; j < M; j++) {
+            cout << ' ' << A[i][j];
         }
-        cout<<"\n";
+        cout << "\n";
     }
     return 0;
 }
