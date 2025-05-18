@@ -624,6 +624,91 @@ static void adj_to_matrix(const vector<vector<int>>& adj,
     }
 }
 
+// Build initial 12-state automaton from the top two strings.
+static void build_initial_two(const string& s1, const string& s2,
+                              vector<char>& C, vector<vector<int>>& A) {
+    int M = C.size();
+    auto assign = [&](const string& s, int start) {
+        int L = s.size();
+        vector<int> char_to_state(6, -1);
+        for (int i = 0; i < 6; i++) {
+            char ch = s[i % L];
+            C[start + i] = ch;
+            if (char_to_state[ch - 'a'] == -1) char_to_state[ch - 'a'] = start + i;
+        }
+        vector<vector<char>> nxt(6);
+        for (int i = 0; i < L; i++) {
+            char cur = s[i];
+            char nx = s[(i + 1) % L];
+            if (find(nxt[cur - 'a'].begin(), nxt[cur - 'a'].end(), nx) == nxt[cur - 'a'].end())
+                nxt[cur - 'a'].push_back(nx);
+        }
+        for (int i = 0; i < 6; i++) {
+            int idx = start + i;
+            char c = C[idx];
+            vector<int> dest;
+            for (char nx : nxt[c - 'a']) {
+                int st = char_to_state[nx - 'a'];
+                if (st != -1) dest.push_back(st);
+            }
+            if (dest.empty()) dest.push_back(idx);
+            vector<int> row(M, 0);
+            vector<int> others;
+            for (int j = 0; j < M; j++) {
+                if (find(dest.begin(), dest.end(), j) == dest.end()) {
+                    row[j] = 1;
+                    others.push_back(j);
+                }
+            }
+            int base = others.size();
+            int rem = 100 - base;
+            int k = dest.size();
+            for (int t = 0; t < k; t++) row[dest[t]] += rem / k;
+            for (int t = 0; t < rem % k; t++) row[dest[t]] += 1;
+            A[idx] = row;
+        }
+    };
+    assign(s1, 0);
+    assign(s2, 6);
+}
+
+// Simulated annealing on transition matrix probabilities.
+static void anneal_matrix(const vector<string>& S, const vector<int>& P,
+                          long long L, vector<char>& C, vector<vector<int>>& A) {
+    int M = C.size();
+    vector<vector<int>> curA = A;
+    vector<vector<int>> bestA = A;
+    long long cur = compute_score(S, P, L, C, curA);
+    long long best = cur;
+
+    auto start = chrono::steady_clock::now();
+    const double TL = 1.5;
+    while (chrono::duration<double>(chrono::steady_clock::now() - start).count() < TL) {
+        int i = rand_int(0, M - 1);
+        int j1 = rand_int(0, M - 1);
+        int j2 = rand_int(0, M - 1);
+        if (j1 == j2) continue;
+        int delta = rand_int(1, 5);
+        if (curA[i][j1] - delta < 1 || curA[i][j2] + delta > 100) continue;
+        curA[i][j1] -= delta;
+        curA[i][j2] += delta;
+        long long sc = compute_score(S, P, L, C, curA);
+        double t = START_TEMP * pow(END_TEMP / START_TEMP,
+                                    chrono::duration<double>(chrono::steady_clock::now() - start).count() / TL);
+        if (sc > cur || rand_double() < exp((double)(sc - cur) / t)) {
+            cur = sc;
+            if (sc > best) {
+                best = sc;
+                bestA = curA;
+            }
+        } else {
+            curA[i][j1] += delta;
+            curA[i][j2] -= delta;
+        }
+    }
+    A = bestA;
+}
+
 // Simulated annealing focusing on the top four strings.
 static void anneal_top4(const vector<string>& S, const vector<int>& P, long long L,
                         int M, vector<char>& bestC, vector<vector<int>>& bestA) {
@@ -725,102 +810,22 @@ int main() {
     vector<int> P(N);
     for (int i = 0; i < N; i++) cin >> S[i] >> P[i];
 
-    // Find indices of the top two scoring strings.
     vector<int> ord(N);
     iota(ord.begin(), ord.end(), 0);
     sort(ord.begin(), ord.end(), [&](int a, int b) { return P[a] > P[b]; });
     int idx1 = ord[0];
     int idx2 = ord.size() >= 2 ? ord[1] : ord[0];
 
-    vector<char> C1(M); // top two strings
-    vector<vector<int>> A1(M, vector<int>(M, 0));
-    build(S[idx1], 0, 6, C1, A1);
-    build(S[idx2], 6, 0, C1, A1);
-    long long score1 = compute_score(S, P, L, C1, A1);
+    vector<char> C(M);
+    vector<vector<int>> A(M, vector<int>(M, 0));
+    build_initial_two(S[idx1], S[idx2], C, A);
 
-    vector<char> C2(M); // top one string only
-    vector<vector<int>> A2(M, vector<int>(M, 0));
-    build_single(S[idx1], C2, A2);
-    long long score2 = compute_score(S, P, L, C2, A2);
-
-    vector<char> bestC = C1;
-    vector<vector<int>> bestA = A1;
-    long long bestScore = score1;
-    if (score2 > bestScore) {
-        bestScore = score2;
-        bestC = C2;
-        bestA = A2;
-    }
-
-    // Additional patterns using top k strings (k = 2,3,4,5)
-    for (int k = 2; k <= 5; k++) {
-        if (k > N) break;
-        vector<char> Ck(M);
-        vector<vector<int>> Ak(M, vector<int>(M, 0));
-        build_multi_k(S, ord, k, Ck, Ak);
-        long long sc = compute_score(S, P, L, Ck, Ak);
-        if (sc > bestScore) {
-            bestScore = sc;
-            bestC = Ck;
-            bestA = Ak;
-        }
-    }
-
-    // Sequential allocation variant of the above approach
-    for (int k = 2; k <= 5; k++) {
-        if (k > N) break;
-        vector<char> Ck(M);
-        vector<vector<int>> Ak(M, vector<int>(M, 0));
-        build_multi_k_seq(S, ord, k, Ck, Ak);
-        long long sc = compute_score(S, P, L, Ck, Ak);
-        if (sc > bestScore) {
-            bestScore = sc;
-            bestC = Ck;
-            bestA = Ak;
-        }
-    }
-
-    // Embedding approach described in the task
-    for (int k = 2; k <= 5; k++) {
-        if (k > N) break;
-        vector<char> Ck(M);
-        vector<vector<int>> Ak(M, vector<int>(M, 0));
-        build_embed_k(S, ord, k, 41, Ck, Ak);
-        long long sc = compute_score(S, P, L, Ck, Ak);
-        if (sc > bestScore) {
-            bestScore = sc;
-            bestC = Ck;
-            bestA = Ak;
-        }
-    }
-
-    // Ordered embedding that respects the full sequence of each string
-    for (int k = 2; k <= 5; k++) {
-        if (k > N) break;
-        vector<char> Ck(M);
-        vector<vector<int>> Ak(M, vector<int>(M, 0));
-        build_ordered_embed_k(S, ord, k, 41, Ck, Ak);
-        long long sc = compute_score(S, P, L, Ck, Ak);
-        if (sc > bestScore) {
-            bestScore = sc;
-            bestC = Ck;
-            bestA = Ak;
-        }
-    }
-    vector<char> CSA(M);
-    vector<vector<int>> ASA;
-    anneal_top4(S, P, L, M, CSA, ASA);
-    long long sc_sa = compute_score(S, P, L, CSA, ASA);
-    if (sc_sa > bestScore) {
-        bestScore = sc_sa;
-        bestC = CSA;
-        bestA = ASA;
-    }
+    anneal_matrix(S, P, L, C, A);
 
     for (int i = 0; i < M; i++) {
-        cout << bestC[i];
+        cout << C[i];
         for (int j = 0; j < M; j++) {
-            cout << ' ' << bestA[i][j];
+            cout << ' ' << A[i][j];
         }
         cout << "\n";
     }
