@@ -5,3 +5,5 @@
 - Future work: vendor Rust dependencies or pre-build the tester for offline scoring.
 - Still unable to verify scores without tester.
 - Implemented new 12-state automaton using top two strings with 41%/33% transitions.
+- Merged transitions from top four strings into a single 12-state automaton with at most three next letters per state.
+- run_all_par.sh failed because tester.exe is missing.
