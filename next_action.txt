@@ -1,0 +1,5 @@
+- Implemented a minimal solver in a.cpp
+- Selected the highest weighted string and output a deterministic Markov chain cycling through that string.
+- Verified compilation and ran the program on test cases 0000 to 0014.
+- Could not compute scores locally because visualizer requires network dependencies.
+- Future work: vendor Rust dependencies or pre-build the tester for offline scoring.
