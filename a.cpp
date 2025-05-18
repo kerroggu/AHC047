@@ -117,6 +117,74 @@ static void build_single(const string& s, vector<char>& C,
     }
 }
 
+// Build a 12-state automaton using the top `k` strings.
+// The first string forms the base 41% path. Subsequent strings
+// try to add their paths with 41% transitions on unused edges.
+static void build_multi_k(const vector<string>& S, const vector<int>& ord,
+                          int k, vector<char>& C, vector<vector<int>>& A) {
+    int M = C.size();
+    string base = S[ord[0]];
+    for (int i = 0; i < M; i++) {
+        C[i] = base[i % (int)base.size()];
+    }
+
+    vector<vector<int>> B(M, vector<int>(M, -1));
+    for (int i = 0; i < M; i++) {
+        int nxt = (i + 1) % M;
+        B[i][nxt] = 41;
+    }
+
+    int use = min(k, (int)S.size());
+    for (int t = 1; t < use; t++) {
+        const string& str = S[ord[t]];
+        int L = str.size();
+        for (int i = 0; i < L; i++) {
+            char cur = str[i];
+            char nx = str[(i + 1) % L];
+            vector<int> froms, tos;
+            for (int j = 0; j < M; j++) if (C[j] == cur) froms.push_back(j);
+            for (int j = 0; j < M; j++) if (C[j] == nx) tos.push_back(j);
+            bool done = false;
+            for (int fr : froms) {
+                int sum = 0;
+                for (int j = 0; j < M; j++) if (B[fr][j] != -1) sum += B[fr][j];
+                if (sum + 41 > 100) continue;
+                for (int to : tos) {
+                    if (B[fr][to] == -1) {
+                        B[fr][to] = 41;
+                        done = true;
+                        break;
+                    }
+                }
+                if (done) break;
+            }
+        }
+    }
+
+    for (int i = 0; i < M; i++) {
+        vector<int> row(M, 0);
+        int sum = 0;
+        vector<int> others;
+        for (int j = 0; j < M; j++) {
+            if (B[i][j] != -1) {
+                row[j] = B[i][j];
+                sum += row[j];
+            } else {
+                others.push_back(j);
+            }
+        }
+        int rem = 100 - sum;
+        int m = others.size();
+        if (m == 0) {
+            if (rem > 0) row[(i + 1) % M] += rem;
+        } else {
+            for (int idx = 0; idx < m; idx++) row[others[idx]] = rem / m;
+            for (int idx = 0; idx < rem % m; idx++) row[others[idx]] += 1;
+        }
+        A[i] = row;
+    }
+}
+
 // Multiply matrices (n x n) of doubles.
 static vector<vector<double>> mul(const vector<vector<double>>& A,
                                   const vector<vector<double>>& B) {
@@ -240,20 +308,33 @@ int main() {
     build_single(S[idx1], C2, A2);
     long long score2 = compute_score(S, P, L, C2, A2);
 
-    const vector<char>* bestC;
-    const vector<vector<int>>* bestA;
-    if (score2 > score1) {
-        bestC = &C2;
-        bestA = &A2;
-    } else {
-        bestC = &C1;
-        bestA = &A1;
+    vector<char> bestC = C1;
+    vector<vector<int>> bestA = A1;
+    long long bestScore = score1;
+    if (score2 > bestScore) {
+        bestScore = score2;
+        bestC = C2;
+        bestA = A2;
+    }
+
+    // Additional patterns using top k strings (k = 2,3,4,5)
+    for (int k = 2; k <= 5; k++) {
+        if (k > N) break;
+        vector<char> Ck(M);
+        vector<vector<int>> Ak(M, vector<int>(M, 0));
+        build_multi_k(S, ord, k, Ck, Ak);
+        long long sc = compute_score(S, P, L, Ck, Ak);
+        if (sc > bestScore) {
+            bestScore = sc;
+            bestC = Ck;
+            bestA = Ak;
+        }
     }
 
     for (int i = 0; i < M; i++) {
-        cout << (*bestC)[i];
+        cout << bestC[i];
         for (int j = 0; j < M; j++) {
-            cout << ' ' << (*bestA)[i][j];
+            cout << ' ' << bestA[i][j];
         }
         cout << "\n";
     }
