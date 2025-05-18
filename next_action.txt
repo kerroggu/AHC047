@@ -8,3 +8,4 @@
 - Merged transitions from top four strings into a single 12-state automaton with at most three next letters per state.
 - run_all_par.sh failed because tester.exe is missing.
 - Fixed probability distribution bug: leftover transitions no longer add to next-letter states.
+- Found probability 0 bug for second-best string because transitions with more than 3 options were truncated. Updated build() to keep all options and distribute 99/k when k>3.
