@@ -63,14 +63,24 @@ static void build(const string& s, int start, int other_first,
             remaining -= prob;
         }
 
-        // Distribute the rest evenly among the other 5 states in this group.
+        // Distribute the rest evenly among the other states excluding the chosen destinations.
+        vector<int> dest_idx;
+        for (char ch : options) {
+            int d = char_to_state[ch - 'a'];
+            if (d != -1) dest_idx.push_back(d);
+        }
         vector<int> others;
         for (int j = 0; j < 6; j++) {
-            if (j != i) others.push_back(start + j);
+            int id = start + j;
+            if (j == i) continue;
+            if (find(dest_idx.begin(), dest_idx.end(), id) != dest_idx.end()) continue;
+            others.push_back(id);
         }
-        for (int t = 0; t < 5; t++) {
-            row[others[t]] += remaining / 5;
-            if (t < remaining % 5) row[others[t]] += 1;
+        if (others.empty()) others.push_back(start); // fallback
+        int m = others.size();
+        for (int t = 0; t < m; t++) {
+            row[others[t]] += remaining / m;
+            if (t < remaining % m) row[others[t]] += 1;
         }
 
         A[idx] = row;
