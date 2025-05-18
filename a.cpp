@@ -1,6 +1,13 @@
 #include <bits/stdc++.h>
 using namespace std;
 
+static const double START_TEMP = 10.0;
+static const double END_TEMP = 0.0001;
+static std::mt19937 rng(123456789);
+static inline double rand_double(){ return std::uniform_real_distribution<double>(0.0,1.0)(rng); }
+static inline int rand_int(int l,int r){ return std::uniform_int_distribution<int>(l,r)(rng); }
+
+
 // Build a 6-state automaton for a single string.
 // `start` is the state index offset for this string.
 // `other_first` is the first state index of the other string.
@@ -586,6 +593,127 @@ static long long compute_score(const vector<string>& S, const vector<int>& P,
     return llround(total);
 }
 
+// Convert adjacency lists to transition probabilities.
+static void adj_to_matrix(const vector<vector<int>>& adj,
+                          vector<vector<int>>& A) {
+    int M = adj.size();
+    A.assign(M, vector<int>(M, 0));
+    for (int i = 0; i < M; i++) {
+        int deg = adj[i].size();
+        if (deg == 0) {
+            A[i][i] = 100;
+            continue;
+        }
+        int per;
+        if (deg == 2) per = 41;
+        else if (deg == 3) per = 32;
+        else if (deg == 4) per = 24;
+        else per = 100 / deg;
+        int sum = 0;
+        for (int to : adj[i]) {
+            A[i][to] += per;
+            sum += per;
+        }
+        int rem = 100 - sum;
+        for (int j = 0; j < M; j++) {
+            A[i][j] += rem / M;
+        }
+        for (int j = 0; j < rem % M; j++) {
+            A[i][j]++;
+        }
+    }
+}
+
+// Simulated annealing focusing on the top four strings.
+static void anneal_top4(const vector<string>& S, const vector<int>& P, long long L,
+                        int M, vector<char>& bestC, vector<vector<int>>& bestA) {
+    vector<int> ord(S.size());
+    iota(ord.begin(), ord.end(), 0);
+    sort(ord.begin(), ord.end(), [&](int a, int b) { return P[a] > P[b]; });
+    int use = min(4, (int)S.size());
+    vector<string> T(use);
+    vector<int> TP(use);
+    for (int i = 0; i < use; i++) {
+        T[i] = S[ord[i]];
+        TP[i] = P[ord[i]];
+    }
+
+    string letters;
+    for (int i = 0; i < use; i++) letters += T[i];
+    if (letters.empty()) letters = "a";
+
+    vector<char> C(M);
+    for (int i = 0; i < M; i++) C[i] = letters[i % letters.size()];
+
+    vector<vector<int>> adj(M);
+    for (int i = 0; i < M; i++) {
+        int deg = rand_int(2, 4);
+        unordered_set<int> st;
+        while ((int)st.size() < deg) {
+            int v = rand_int(0, M - 1);
+            if (v == i) continue;
+            st.insert(v);
+        }
+        adj[i] = vector<int>(st.begin(), st.end());
+    }
+
+    adj_to_matrix(adj, bestA);
+    bestC = C;
+    long long cur = compute_score(T, TP, L, C, bestA);
+    long long best = cur;
+
+    auto start = chrono::steady_clock::now();
+    const double TL = 1.5;
+    while (chrono::duration<double>(chrono::steady_clock::now() - start).count() < TL) {
+        auto cand = adj;
+        int op = rand_int(0, 2);
+        if (op == 0) {
+            int u = rand_int(0, M - 1);
+            int v = rand_int(0, M - 1);
+            if (!cand[u].empty() && !cand[v].empty()) {
+                int iu = rand_int(0, (int)cand[u].size() - 1);
+                int iv = rand_int(0, (int)cand[v].size() - 1);
+                int a = cand[u][iu];
+                int b = cand[v][iv];
+                if (find(cand[u].begin(), cand[u].end(), b) == cand[u].end() &&
+                    find(cand[v].begin(), cand[v].end(), a) == cand[v].end()) {
+                    cand[u][iu] = b;
+                    cand[v][iv] = a;
+                }
+            }
+        } else if (op == 1) {
+            int u = rand_int(0, M - 1);
+            if ((int)cand[u].size() < 4) {
+                int v = rand_int(0, M - 1);
+                if (v != u && find(cand[u].begin(), cand[u].end(), v) == cand[u].end()) {
+                    cand[u].push_back(v);
+                }
+            }
+        } else {
+            int u = rand_int(0, M - 1);
+            if ((int)cand[u].size() > 2) {
+                int idx = rand_int(0, (int)cand[u].size() - 1);
+                cand[u].erase(cand[u].begin() + idx);
+            }
+        }
+
+        vector<vector<int>> Ak;
+        adj_to_matrix(cand, Ak);
+        long long sc = compute_score(T, TP, L, C, Ak);
+        double t = START_TEMP * pow(END_TEMP / START_TEMP,
+                                    chrono::duration<double>(chrono::steady_clock::now() - start).count() / TL);
+        if (sc > cur || rand_double() < exp((double)(sc - cur) / t)) {
+            adj.swap(cand);
+            cur = sc;
+            if (sc > best) {
+                best = sc;
+                bestA = Ak;
+            }
+        }
+    }
+    bestC = C;
+}
+
 int main() {
     ios::sync_with_stdio(false);
     cin.tie(nullptr);
@@ -678,6 +806,15 @@ int main() {
             bestC = Ck;
             bestA = Ak;
         }
+    }
+    vector<char> CSA(M);
+    vector<vector<int>> ASA;
+    anneal_top4(S, P, L, M, CSA, ASA);
+    long long sc_sa = compute_score(S, P, L, CSA, ASA);
+    if (sc_sa > bestScore) {
+        bestScore = sc_sa;
+        bestC = CSA;
+        bestA = ASA;
     }
 
     for (int i = 0; i < M; i++) {
