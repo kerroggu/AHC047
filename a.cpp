@@ -190,8 +190,7 @@ static void build_multi_k(const vector<string>& S, const vector<int>& ord,
 // be inserted due to probability constraints, a new state is created as long as
 // unused states remain.
 static void build_multi_k_seq(const vector<string>& S, const vector<int>& ord,
-                              int k, int prob, vector<char>& C,
-                              vector<vector<int>>& A) {
+                              int k, vector<char>& C, vector<vector<int>>& A) {
     const int M = C.size();
     const string& base = S[ord[0]];
 
@@ -205,10 +204,10 @@ static void build_multi_k_seq(const vector<string>& S, const vector<int>& ord,
         used++;
     }
 
-    // base `prob`% path within the first 6 states
+    // base 41% path within the first 6 states
     for (int i = 0; i < used; i++) {
         int to = (i + 1) % used;
-        B[i][to] = prob;
+        B[i][to] = 41;
     }
 
     int use = min(k, (int)S.size());
@@ -219,13 +218,13 @@ static void build_multi_k_seq(const vector<string>& S, const vector<int>& ord,
             char cur = str[i];
             char nx = str[(i + 1) % L];
 
-            // search state for `cur` that can accept a new `prob`% transition
+            // search state for `cur` that can accept a new 41% transition
             int fr = -1;
             for (int j = 0; j < used; j++) {
                 if (C[j] != cur) continue;
                 int sum = 0;
                 for (int x = 0; x < used; x++) if (B[j][x] != -1) sum += B[j][x];
-                if (sum + prob <= 100) { fr = j; break; }
+                if (sum + 41 <= 100) { fr = j; break; }
             }
             if (fr == -1 && used < M) {
                 fr = used;
@@ -244,7 +243,7 @@ static void build_multi_k_seq(const vector<string>& S, const vector<int>& ord,
             }
             if (to == -1) continue;
 
-            B[fr][to] = prob;
+            B[fr][to] = 41;
         }
     }
 
@@ -625,8 +624,8 @@ int main() {
         bestA = A2;
     }
 
-    // Additional patterns using top k strings
-    for (int k = 2; k <= 8; k++) {
+    // Additional patterns using top k strings (k = 2,3,4,5)
+    for (int k = 2; k <= 5; k++) {
         if (k > N) break;
         vector<char> Ck(M);
         vector<vector<int>> Ak(M, vector<int>(M, 0));
@@ -640,50 +639,44 @@ int main() {
     }
 
     // Sequential allocation variant of the above approach
-    for (int k = 2; k <= 8; k++) {
+    for (int k = 2; k <= 5; k++) {
         if (k > N) break;
-        for (int prob : {41, 50}) {
-            vector<char> Ck(M);
-            vector<vector<int>> Ak(M, vector<int>(M, 0));
-            build_multi_k_seq(S, ord, k, prob, Ck, Ak);
-            long long sc = compute_score(S, P, L, Ck, Ak);
-            if (sc > bestScore) {
-                bestScore = sc;
-                bestC = Ck;
-                bestA = Ak;
-            }
+        vector<char> Ck(M);
+        vector<vector<int>> Ak(M, vector<int>(M, 0));
+        build_multi_k_seq(S, ord, k, Ck, Ak);
+        long long sc = compute_score(S, P, L, Ck, Ak);
+        if (sc > bestScore) {
+            bestScore = sc;
+            bestC = Ck;
+            bestA = Ak;
         }
     }
 
     // Embedding approach described in the task
-    for (int k = 2; k <= 8; k++) {
+    for (int k = 2; k <= 5; k++) {
         if (k > N) break;
-        for (int prob : {41, 50}) {
-            vector<char> Ck(M);
-            vector<vector<int>> Ak(M, vector<int>(M, 0));
-            build_embed_k(S, ord, k, prob, Ck, Ak);
-            long long sc = compute_score(S, P, L, Ck, Ak);
-            if (sc > bestScore) {
-                bestScore = sc;
-                bestC = Ck;
-                bestA = Ak;
-            }
+        vector<char> Ck(M);
+        vector<vector<int>> Ak(M, vector<int>(M, 0));
+        build_embed_k(S, ord, k, 41, Ck, Ak);
+        long long sc = compute_score(S, P, L, Ck, Ak);
+        if (sc > bestScore) {
+            bestScore = sc;
+            bestC = Ck;
+            bestA = Ak;
         }
     }
 
     // Ordered embedding that respects the full sequence of each string
-    for (int k = 2; k <= 8; k++) {
+    for (int k = 2; k <= 5; k++) {
         if (k > N) break;
-        for (int prob : {41, 50}) {
-            vector<char> Ck(M);
-            vector<vector<int>> Ak(M, vector<int>(M, 0));
-            build_ordered_embed_k(S, ord, k, prob, Ck, Ak);
-            long long sc = compute_score(S, P, L, Ck, Ak);
-            if (sc > bestScore) {
-                bestScore = sc;
-                bestC = Ck;
-                bestA = Ak;
-            }
+        vector<char> Ck(M);
+        vector<vector<int>> Ak(M, vector<int>(M, 0));
+        build_ordered_embed_k(S, ord, k, 41, Ck, Ak);
+        long long sc = compute_score(S, P, L, Ck, Ak);
+        if (sc > bestScore) {
+            bestScore = sc;
+            bestC = Ck;
+            bestA = Ak;
         }
     }
 
