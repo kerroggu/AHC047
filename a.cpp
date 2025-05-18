@@ -185,6 +185,100 @@ static void build_multi_k(const vector<string>& S, const vector<int>& ord,
     }
 }
 
+// Build a 12-state automaton by allocating 6 states for the top string and
+// gradually adding paths of the next (k-1) strings. When a 41% transition cannot
+// be inserted due to probability constraints, a new state is created as long as
+// unused states remain.
+static void build_multi_k_seq(const vector<string>& S, const vector<int>& ord,
+                              int k, vector<char>& C, vector<vector<int>>& A) {
+    const int M = C.size();
+    const string& base = S[ord[0]];
+
+    // number of states currently used
+    int used = 0;
+    vector<vector<int>> B(M, vector<int>(M, -1));
+
+    // assign first 6 states to the top string
+    for (int i = 0; i < 6 && i < M; i++) {
+        C[i] = base[i % (int)base.size()];
+        used++;
+    }
+
+    // base 41% path within the first 6 states
+    for (int i = 0; i < used; i++) {
+        int to = (i + 1) % used;
+        B[i][to] = 41;
+    }
+
+    int use = min(k, (int)S.size());
+    for (int t = 1; t < use; t++) {
+        const string& str = S[ord[t]];
+        int L = str.size();
+        for (int i = 0; i < L; i++) {
+            char cur = str[i];
+            char nx = str[(i + 1) % L];
+
+            // search state for `cur` that can accept a new 41% transition
+            int fr = -1;
+            for (int j = 0; j < used; j++) {
+                if (C[j] != cur) continue;
+                int sum = 0;
+                for (int x = 0; x < used; x++) if (B[j][x] != -1) sum += B[j][x];
+                if (sum + 41 <= 100) { fr = j; break; }
+            }
+            if (fr == -1 && used < M) {
+                fr = used;
+                C[used++] = cur;
+            }
+            if (fr == -1) continue;
+
+            // search destination state for `nx`
+            int to = -1;
+            for (int j = 0; j < used; j++) {
+                if (C[j] == nx && B[fr][j] == -1) { to = j; break; }
+            }
+            if (to == -1 && used < M) {
+                to = used;
+                C[used++] = nx;
+            }
+            if (to == -1) continue;
+
+            B[fr][to] = 41;
+        }
+    }
+
+    // fill remaining characters for unused states
+    for (int i = used; i < M; i++) {
+        C[i] = base[i % (int)base.size()];
+    }
+
+    // finalize transition probabilities
+    for (int i = 0; i < M; i++) {
+        vector<int> row(M, 0);
+        int sum = 0;
+        for (int j = 0; j < M; j++) {
+            if (B[i][j] != -1) {
+                row[j] = B[i][j];
+                sum += row[j];
+            }
+        }
+        int rem = 100 - sum;
+        vector<int> others;
+        for (int j = 0; j < M; j++) {
+            if (j == i) continue;
+            if (row[j] == 0) others.push_back(j);
+        }
+        if (others.empty()) {
+            row[(i + 1) % M] += rem;
+        } else {
+            int m = others.size();
+            for (int idx = 0; idx < m; idx++) row[others[idx]] += rem / m;
+            for (int idx = 0; idx < rem % m; idx++) row[others[idx]] += 1;
+        }
+        A[i] = row;
+    }
+}
+
 // Multiply matrices (n x n) of doubles.
 static vector<vector<double>> mul(const vector<vector<double>>& A,
                                   const vector<vector<double>>& B) {
@@ -323,6 +417,20 @@ int main() {
         vector<char> Ck(M);
         vector<vector<int>> Ak(M, vector<int>(M, 0));
         build_multi_k(S, ord, k, Ck, Ak);
+        long long sc = compute_score(S, P, L, Ck, Ak);
+        if (sc > bestScore) {
+            bestScore = sc;
+            bestC = Ck;
+            bestA = Ak;
+        }
+    }
+
+    // Sequential allocation variant of the above approach
+    for (int k = 2; k <= 5; k++) {
+        if (k > N) break;
+        vector<char> Ck(M);
+        vector<vector<int>> Ak(M, vector<int>(M, 0));
+        build_multi_k_seq(S, ord, k, Ck, Ak);
         long long sc = compute_score(S, P, L, Ck, Ak);
         if (sc > bestScore) {
             bestScore = sc;
