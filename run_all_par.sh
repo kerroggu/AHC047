@@ -1,10 +1,10 @@
 #!/bin/bash
 
-g++ a.cpp -o a.out -std=c++17 -O2 -Wall
+g++ sa.cpp -o sa.out -std=c++17 -O2 -Wall
 
 # --- 設定 (以前のスクリプトと同様) ---
 cd "$(dirname "$0")"
-CPP_EXECUTABLE="./a.out"
+CPP_EXECUTABLE="./sa.out"
 TESTER_EXECUTABLE="./tester.exe"
 INPUT_DIR="./in"
 OUTPUT_DIR="./out"
