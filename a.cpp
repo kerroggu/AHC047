@@ -6,7 +6,7 @@ using namespace std;
 // `other_first` is the first state index of the other string.
 static void build(const string& s, int start, int other_first,
                   vector<char>& C, vector<vector<int>>& A) {
-    const int M = 12;
+    const int M = C.size();
 
     // Collect unique letters used in the string.
     vector<char> letters;
@@ -53,9 +53,12 @@ static void build(const string& s, int start, int other_first,
 
         char c = states[i];
         vector<char> options(nxt[c - 'a'].begin(), nxt[c - 'a'].end());
-        if (options.size() > 3) options.resize(3);
         int k = options.size();
-        int prob = (k == 3 ? 33 : 41);
+        int prob = 0;
+        if (k == 1) prob = 41;
+        else if (k == 2) prob = 41;
+        else if (k == 3) prob = 33;
+        else if (k > 0) prob = 99 / k; // fallback for rare cases
         for (int t = 0; t < k; t++) {
             int dest = char_to_state[options[t] - 'a'];
             if (dest == -1) dest = start; // fallback
