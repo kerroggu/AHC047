@@ -371,6 +371,127 @@ static void build_embed_k(const vector<string>& S, const vector<int>& ord,
     }
 }
 
+// Similar to build_embed_k but ensures that each string forms a continuous
+// path from its first character to the last. When embedding the next string,
+// a transition from the previous string's last state to the new string's first
+// state is inserted with probability `prob` if possible.
+static void build_ordered_embed_k(const vector<string>& S, const vector<int>& ord,
+                                  int k, int prob, vector<char>& C,
+                                  vector<vector<int>>& A) {
+    const int M = C.size();
+    vector<vector<int>> B(M, vector<int>(M, -1));
+    vector<char> letters(M, '?');
+
+    int used = 0;
+    auto find_state = [&](char ch) -> int {
+        for (int i = 0; i < used; i++) if (letters[i] == ch) return i;
+        return -1;
+    };
+    auto add_state = [&](char ch) -> int {
+        if (used >= M) return -1;
+        letters[used] = ch;
+        return used++;
+    };
+    auto out_cnt = [&](int s) -> int {
+        int c = 0;
+        for (int j = 0; j < used; j++) if (B[s][j] != -1) c++;
+        return c;
+    };
+
+    int use = min(k, (int)S.size());
+    int prev_last = -1; // last state of the previous string
+    for (int t = 0; t < use; t++) {
+        const string& str = S[ord[t]];
+        int L = str.size();
+        if (L == 0) continue;
+
+        int cur = find_state(str[0]);
+        if (cur == -1) {
+            cur = add_state(str[0]);
+            if (cur == -1) break;
+        }
+
+        if (prev_last != -1 && B[prev_last][cur] == -1) {
+            if (out_cnt(prev_last) < 2) {
+                B[prev_last][cur] = prob;
+            } else {
+                int nx = add_state(letters[prev_last]);
+                if (nx != -1) {
+                    B[nx][cur] = prob;
+                }
+            }
+        }
+
+        for (int i = 1; i < L; i++) {
+            char x = str[i - 1];
+            char y = str[i];
+
+            if (letters[cur] != x) {
+                int s2 = find_state(x);
+                if (s2 == -1) {
+                    s2 = add_state(x);
+                    if (s2 == -1) break;
+                }
+                cur = s2;
+            }
+
+            int dest = -1;
+            for (int j = 0; j < used; j++) {
+                if (letters[j] == y && B[cur][j] != -1) { dest = j; break; }
+            }
+            if (dest == -1) {
+                int sy = find_state(y);
+                if (sy == -1) {
+                    sy = add_state(y);
+                    if (sy == -1) break;
+                }
+                if (B[cur][sy] == -1) {
+                    if (out_cnt(cur) < 2) {
+                        B[cur][sy] = prob;
+                    } else {
+                        int nx = add_state(x);
+                        if (nx != -1) {
+                            B[nx][sy] = prob;
+                            cur = nx;
+                        }
+                    }
+                }
+                dest = sy;
+            }
+            cur = dest;
+        }
+        prev_last = cur;
+    }
+
+    const string& base = S[ord[0]];
+    for (int i = used; i < M; i++) letters[i] = base[i % (int)base.size()];
+
+    for (int i = 0; i < M; i++) {
+        vector<int> row(M, 0);
+        int sum = 0;
+        for (int j = 0; j < M; j++) {
+            if (B[i][j] != -1) {
+                row[j] = B[i][j];
+                sum += row[j];
+            }
+        }
+        int rem = 100 - sum;
+        vector<int> others;
+        for (int j = 0; j < M; j++) {
+            if (row[j] == 0) others.push_back(j);
+        }
+        if (others.empty()) {
+            row[(i + 1) % M] += rem;
+        } else {
+            int m = others.size();
+            for (int t = 0; t < m; t++) row[others[t]] += rem / m;
+            for (int t = 0; t < rem % m; t++) row[others[t]] += 1;
+        }
+        C[i] = letters[i];
+        A[i] = row;
+    }
+}
+
 // Multiply matrices (n x n) of doubles.
 static vector<vector<double>> mul(const vector<vector<double>>& A,
                                   const vector<vector<double>>& B) {
@@ -537,6 +658,20 @@ int main() {
         vector<char> Ck(M);
         vector<vector<int>> Ak(M, vector<int>(M, 0));
         build_embed_k(S, ord, k, 41, Ck, Ak);
+        long long sc = compute_score(S, P, L, Ck, Ak);
+        if (sc > bestScore) {
+            bestScore = sc;
+            bestC = Ck;
+            bestA = Ak;
+        }
+    }
+
+    // Ordered embedding that respects the full sequence of each string
+    for (int k = 2; k <= 5; k++) {
+        if (k > N) break;
+        vector<char> Ck(M);
+        vector<vector<int>> Ak(M, vector<int>(M, 0));
+        build_ordered_embed_k(S, ord, k, 41, Ck, Ak);
         long long sc = compute_score(S, P, L, Ck, Ak);
         if (sc > bestScore) {
             bestScore = sc;
