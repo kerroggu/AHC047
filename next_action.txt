@@ -3,3 +3,5 @@
 - Verified compilation and ran the program on test cases 0000 to 0014.
 - Could not compute scores locally because visualizer requires network dependencies.
 - Future work: vendor Rust dependencies or pre-build the tester for offline scoring.
+- Still unable to verify scores without tester.
+- Implemented new 12-state automaton using top two strings with 41%/33% transitions.
