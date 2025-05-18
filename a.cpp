@@ -90,6 +90,127 @@ static void build(const string& s, int start, int other_first,
     }
 }
 
+// Build a 12-state automaton using only one string.
+static void build_single(const string& s, vector<char>& C,
+                         vector<vector<int>>& A) {
+    int M = C.size();
+    for (int i = 0; i < M; i++) {
+        C[i] = s[i % (int)s.size()];
+    }
+    for (int i = 0; i < M; i++) {
+        vector<int> row(M, 0);
+        int next = (i + 1) % M;
+        row[next] = 41;
+        int rem = 59;
+        int cnt = M - 1;
+        for (int j = 0; j < M; j++) {
+            if (j == next) continue;
+            row[j] += rem / cnt;
+        }
+        int extra = rem % cnt;
+        for (int j = 0; j < M && extra > 0; j++) {
+            if (j == next) continue;
+            row[j]++;
+            extra--;
+        }
+        A[i] = row;
+    }
+}
+
+// Multiply matrices (n x n) of doubles.
+static vector<vector<double>> mul(const vector<vector<double>>& A,
+                                  const vector<vector<double>>& B) {
+    int n = A.size();
+    vector<vector<double>> C(n, vector<double>(n, 0.0));
+    for (int i = 0; i < n; i++) {
+        for (int k = 0; k < n; k++) {
+            if (A[i][k] == 0.0) continue;
+            double a = A[i][k];
+            for (int j = 0; j < n; j++) {
+                C[i][j] += a * B[k][j];
+            }
+        }
+    }
+    return C;
+}
+
+// Compute X^power for square matrix X.
+static vector<vector<double>> mat_pow(vector<vector<double>> base,
+                                      long long power) {
+    int n = base.size();
+    vector<vector<double>> result(n, vector<double>(n, 0.0));
+    for (int i = 0; i < n; i++) result[i][i] = 1.0;
+    while (power > 0) {
+        if (power & 1) result = mul(result, base);
+        base = mul(base, base);
+        power >>= 1;
+    }
+    return result;
+}
+
+// Probability that `word` appears in length L walk.
+static double compute_word_probability(const string& word, long long L,
+                                       const vector<char>& C,
+                                       const vector<vector<int>>& A) {
+    int M = C.size();
+    int W = word.size();
+    map<pair<int, int>, int> states;
+    int n = 0;
+    for (int j = 0; j < M; j++) {
+        states[{0, j}] = n++;
+        for (int i = 0; i < W - 1; i++) {
+            if (word[i] == C[j]) {
+                states[{i + 1, j}] = n++;
+            }
+        }
+    }
+    vector<vector<double>> X(n, vector<double>(n, 0.0));
+    for (auto& kv : states) {
+        int len = kv.first.first;
+        int u = kv.first.second;
+        int j = kv.second;
+        for (int v = 0; v < M; v++) {
+            string next = word.substr(0, len) + C[v];
+            int s = 0;
+            while (next.substr(s) != word.substr(0, next.size() - s)) s++;
+            if ((int)next.size() - s != W) {
+                int i = states[{(int)next.size() - s, v}];
+                X[i][j] += A[u][v] / 100.0;
+            }
+        }
+    }
+    vector<vector<double>> Y;
+    if (L <= 1) {
+        Y.assign(n, vector<double>(n, 0.0));
+        for (int i = 0; i < n; i++) Y[i][i] = 1.0;
+    } else {
+        Y = mat_pow(X, L - 1);
+    }
+    int init = (C[0] == word[0]) ? states[{1, 0}] : states[{0, 0}];
+    double ret = 1.0;
+    for (int i = 0; i < n; i++) ret -= Y[i][init];
+    if (ret < 0) ret = 0.0;
+    if (ret > 1) ret = 1.0;
+    return ret;
+}
+
+// Compute total score for the given automaton.
+static long long compute_score(const vector<string>& S, const vector<int>& P,
+                               long long L, const vector<char>& C,
+                               const vector<vector<int>>& A) {
+    int M = C.size();
+    for (int i = 0; i < M; i++) {
+        int sum = accumulate(A[i].begin(), A[i].end(), 0);
+        if (sum != 100) return 0;
+    }
+    double total = 0.0;
+    for (size_t i = 0; i < S.size(); i++) {
+        double prob = compute_word_probability(S[i], L, C, A);
+        total += prob * P[i];
+    }
+    return llround(total);
+}
+
 int main() {
     ios::sync_with_stdio(false);
     cin.tie(nullptr);
@@ -108,16 +229,31 @@ int main() {
     int idx1 = ord[0];
     int idx2 = ord.size() >= 2 ? ord[1] : ord[0];
 
-    vector<char> C(M);
-    vector<vector<int>> A(M, vector<int>(M, 0));
+    vector<char> C1(M); // top two strings
+    vector<vector<int>> A1(M, vector<int>(M, 0));
+    build(S[idx1], 0, 6, C1, A1);
+    build(S[idx2], 6, 0, C1, A1);
+    long long score1 = compute_score(S, P, L, C1, A1);
 
-    build(S[idx1], 0, 6, C, A);  // states 0..5
-    build(S[idx2], 6, 0, C, A);  // states 6..11
+    vector<char> C2(M); // top one string only
+    vector<vector<int>> A2(M, vector<int>(M, 0));
+    build_single(S[idx1], C2, A2);
+    long long score2 = compute_score(S, P, L, C2, A2);
+
+    const vector<char>* bestC;
+    const vector<vector<int>>* bestA;
+    if (score2 > score1) {
+        bestC = &C2;
+        bestA = &A2;
+    } else {
+        bestC = &C1;
+        bestA = &A1;
+    }
 
     for (int i = 0; i < M; i++) {
-        cout << C[i];
+        cout << (*bestC)[i];
         for (int j = 0; j < M; j++) {
-            cout << ' ' << A[i][j];
+            cout << ' ' << (*bestA)[i][j];
         }
         cout << "\n";
     }
