@@ -1,81 +1,6 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-// Build a 6-state automaton for a single string.
-// `start` is the state index offset for this string.
-// `other_first` is the first state index of the other string.
-static void build(const string& s, int start, int other_first,
-                  vector<char>& C, vector<vector<int>>& A) {
-    const int M = 12;
-
-    // Collect unique letters used in the string.
-    vector<char> letters;
-    vector<int> seen(6, 0);
-    for (char ch : s) {
-        int id = ch - 'a';
-        if (!seen[id]) {
-            letters.push_back(ch);
-            seen[id] = 1;
-        }
-    }
-    if (letters.empty()) letters.push_back('a');
-    int K = letters.size();
-
-    // Assign 6 states by repeating the used letters.
-    vector<char> states(6);
-    for (int i = 0; i < 6; i++) {
-        states[i] = letters[i % K];
-        C[start + i] = states[i];
-    }
-
-    // Map each letter to the first corresponding state index.
-    vector<int> char_to_state(6, -1);
-    for (int i = 0; i < 6; i++) {
-        int id = states[i] - 'a';
-        if (char_to_state[id] == -1) char_to_state[id] = start + i;
-    }
-
-    // Determine possible next letters for each letter (cyclic).
-    vector<set<char>> nxt(6);
-    for (size_t i = 0; i < s.size(); i++) {
-        char cur = s[i];
-        char nx = s[(i + 1) % s.size()];
-        nxt[cur - 'a'].insert(nx);
-    }
-
-    for (int i = 0; i < 6; i++) {
-        int idx = start + i;
-        vector<int> row(M, 0);
-
-        // 1% chance to jump to the beginning of the other string.
-        row[other_first] = 1;
-        int remaining = 99; // remaining probability mass
-
-        char c = states[i];
-        vector<char> options(nxt[c - 'a'].begin(), nxt[c - 'a'].end());
-        if (options.size() > 3) options.resize(3);
-        int k = options.size();
-        int prob = (k == 3 ? 33 : 41);
-        for (int t = 0; t < k; t++) {
-            int dest = char_to_state[options[t] - 'a'];
-            if (dest == -1) dest = start; // fallback
-            row[dest] += prob;
-            remaining -= prob;
-        }
-
-        // Distribute the rest evenly among the other 5 states in this group.
-        vector<int> others;
-        for (int j = 0; j < 6; j++) {
-            if (j != i) others.push_back(start + j);
-        }
-        for (int t = 0; t < 5; t++) {
-            row[others[t]] += remaining / 5;
-            if (t < remaining % 5) row[others[t]] += 1;
-        }
-
-        A[idx] = row;
-    }
-}
 
 int main() {
     ios::sync_with_stdio(false);
@@ -88,18 +13,70 @@ int main() {
     vector<int> P(N);
     for (int i = 0; i < N; i++) cin >> S[i] >> P[i];
 
-    // Find indices of the top two scoring strings.
+    // sort indices by score
     vector<int> ord(N);
     iota(ord.begin(), ord.end(), 0);
     sort(ord.begin(), ord.end(), [&](int a, int b) { return P[a] > P[b]; });
-    int idx1 = ord[0];
-    int idx2 = ord.size() >= 2 ? ord[1] : ord[0];
 
+    int K = min(4, N); // use up to top 4 strings
+
+    // Count transitions for each letter using the top strings
+    vector<vector<int>> cnt(6, vector<int>(6, 0));
+    for (int t = 0; t < K; t++) {
+        const string& s = S[ord[t]];
+        int len = s.size();
+        for (int i = 0; i < len; i++) {
+            int a = s[i] - 'a';
+            int b = s[(i + 1) % len] - 'a';
+            cnt[a][b]++;
+        }
+    }
+
+    // Determine up to 3 next letters for each letter
+    vector<vector<int>> nxt(6);
+    for (int a = 0; a < 6; a++) {
+        vector<pair<int,int>> tmp;
+        for (int b = 0; b < 6; b++) tmp.push_back({-cnt[a][b], b});
+        sort(tmp.begin(), tmp.end());
+        for (int j = 0; j < 3 && j < 6; j++) {
+            if (cnt[a][tmp[j].second] == 0 && j > 0) break;
+            nxt[a].push_back(tmp[j].second);
+        }
+        if (nxt[a].empty()) nxt[a].push_back(a); // fallback to itself
+    }
+
+    const int STATE_PER_CHAR = 2; // total states = 6 * 2 = 12
     vector<char> C(M);
     vector<vector<int>> A(M, vector<int>(M, 0));
+    for (int c = 0; c < 6; c++) {
+        for (int k = 0; k < STATE_PER_CHAR; k++) {
+            C[c * STATE_PER_CHAR + k] = 'a' + c;
+        }
+    }
 
-    build(S[idx1], 0, 6, C, A);  // states 0..5
-    build(S[idx2], 6, 0, C, A);  // states 6..11
+    int start_state = (S[ord[0]][0] - 'a') * STATE_PER_CHAR;
+
+    for (int c = 0; c < 6; c++) {
+        for (int k = 0; k < STATE_PER_CHAR; k++) {
+            int idx = c * STATE_PER_CHAR + k;
+            vector<int> row(M, 0);
+            row[start_state] = 1; // 1% jump to start
+
+            int num = nxt[c].size();
+            int prob = (num == 3 ? 33 : 41);
+            int remaining = 99 - prob * num;
+
+            for (int d : nxt[c]) {
+                row[d * STATE_PER_CHAR] += prob;
+            }
+
+            // distribute remaining between the two states of this letter
+            row[c * STATE_PER_CHAR] += remaining / 2;
+            row[c * STATE_PER_CHAR + 1] += remaining - remaining / 2;
+
+            A[idx] = row;
+        }
+    }
 
     for (int i = 0; i < M; i++) {
         cout << C[i];
