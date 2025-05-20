@@ -17,6 +17,7 @@ if [ ! -f "$CPP_EXECUTABLE" ]; then
     exit 1
 fi
 mkdir -p "$OUTPUT_DIR"
+mkdir -p "$ERR_DIR"
 > "$SCORE_FILE" # スコアファイルを初期化
 
 # --- 並列実行数を設定 ---
@@ -27,7 +28,7 @@ MAX_JOBS=1
 echo "Starting tests with up to $MAX_JOBS parallel jobs..."
 
 # --- テストケース番号のリストを生成 ---
-find "$INPUT_DIR" -maxdepth 1 -name '????.txt' -printf '%f\n' | sed 's/\.txt$//' | sort | \
+find "$INPUT_DIR" -maxdepth 1 -name '????.txt' -printf '%f\n' | sed 's/\.txt$//' | sort | head -n 15 | \
 xargs -I {} -P "$MAX_JOBS" \
 bash -c '
     filenum="{}"  # xargsから渡されたファイル番号
