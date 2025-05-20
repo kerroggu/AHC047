@@ -772,9 +772,23 @@ static void anneal_matrix(const vector<string>& S, const vector<int>& P,
     long long cur = fast_score(S, P, L, C, curA);
     long long best = cur;
 
+    auto print_solution = [&](const vector<char>& C, const vector<vector<int>>& A) {
+        for (int i = 0; i < M; i++) {
+            cout << C[i];
+            for (int j = 0; j < M; j++) {
+                cout << ' ' << A[i][j];
+            }
+            cout << '\n';
+        }
+        cout.flush();
+    };
+
     auto start = chrono::steady_clock::now();
     const double TL = 1.5;
+    int loop = 0;
     while (chrono::duration<double>(chrono::steady_clock::now() - start).count() < TL) {
+        ++loop;
+        cerr << loop << "\n";
         int i = rand_int(0, M - 1);
         int j1 = rand_int(0, M - 1);
         int j2 = rand_int(0, M - 1);
@@ -791,6 +805,9 @@ static void anneal_matrix(const vector<string>& S, const vector<int>& P,
             if (sc > best) {
                 best = sc;
                 bestA = curA;
+                if (loop >= 1000) {
+                    print_solution(C, bestA);
+                }
             }
         } else {
             curA[i][j1] += delta;
