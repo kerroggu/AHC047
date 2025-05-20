@@ -788,7 +788,6 @@ static void anneal_matrix(const vector<string>& S, const vector<int>& P,
     int loop = 0;
     while (chrono::duration<double>(chrono::steady_clock::now() - start).count() < TL) {
         ++loop;
-        cerr << loop << "\n";
         int i = rand_int(0, M - 1);
         int j1 = rand_int(0, M - 1);
         int j2 = rand_int(0, M - 1);
@@ -815,6 +814,7 @@ static void anneal_matrix(const vector<string>& S, const vector<int>& P,
         }
     }
     A = bestA;
+    cerr << "loop = " << loop << "\n";
 }
 
 // Simulated annealing focusing on the top four strings.
