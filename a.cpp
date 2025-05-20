@@ -794,7 +794,9 @@ static void anneal_matrix(const vector<string>& S, const vector<int>& P,
         int j2 = rand_int(0, M - 1);
         if (j1 == j2) continue;
         int delta = rand_int(1, 5);
-        if (curA[i][j1] - delta < 1 || curA[i][j2] + delta > 100) continue;
+        double elapsed = chrono::duration<double>(chrono::steady_clock::now() - start).count();
+        int lb = (elapsed > TL - 0.5) ? 0 : 1;
+        if (curA[i][j1] - delta < lb || curA[i][j2] + delta > 100) continue;
         curA[i][j1] -= delta;
         curA[i][j2] += delta;
         long long sc = fast_score(S, P, L, C, curA);
