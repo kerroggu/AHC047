@@ -1,6 +1,7 @@
 #include <bits/stdc++.h>
 using namespace std;
 
+const double TL = 1.95;
 static const double START_TEMP = 10.0;
 static const double END_TEMP = 0.0001;
 static std::mt19937 rng(123456789);
@@ -784,7 +785,7 @@ static void anneal_matrix(const vector<string>& S, const vector<int>& P,
     };
 
     auto start = chrono::steady_clock::now();
-    const double TL = 3.0;
+    
     int loop = 0;
     while (chrono::duration<double>(chrono::steady_clock::now() - start).count() < TL) {
         ++loop;
@@ -858,7 +859,7 @@ static void anneal_top4(const vector<string>& S, const vector<int>& P, long long
     long long best = cur;
 
     auto start = chrono::steady_clock::now();
-    const double TL = 1.5;
+    
     while (chrono::duration<double>(chrono::steady_clock::now() - start).count() < TL) {
         auto cand = adj;
         int op = rand_int(0, 2);
