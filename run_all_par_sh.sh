@@ -23,7 +23,7 @@ mkdir -p "$ERR_DIR"
 # --- 並列実行数を設定 ---
 NPROC=$(nproc 2>/dev/null || echo 4)
 MAX_JOBS=$NPROC
-MAX_JOBS=1
+#MAX_JOBS=1
 
 echo "Starting tests with up to $MAX_JOBS parallel jobs..."
 
