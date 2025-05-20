@@ -4,6 +4,7 @@ using namespace std;
 const double TL = 1.95;
 static const double START_TEMP = 10.0;
 static const double END_TEMP = 0.0001;
+static const double SCORE_EXPONENT = 1.5;
 static std::mt19937 rng(123456789);
 static inline double rand_double(){ return std::uniform_real_distribution<double>(0.0,1.0)(rng); }
 static inline int rand_int(int l,int r){ return std::uniform_int_distribution<int>(l,r)(rng); }
@@ -589,7 +590,7 @@ static long long compute_score(const vector<string>& S, const vector<int>& P,
     double total = 0.0;
     for (size_t i = 0; i < S.size(); i++) {
         double prob = compute_word_probability(S[i], L, C, A);
-        total += prob * P[i];
+        total += prob * pow(P[i], SCORE_EXPONENT);
     }
     return llround(total);
 }
@@ -655,7 +656,7 @@ static long long fast_score(const vector<string>& S, const vector<int>& P,
             double q = 1.0 - pow(1.0 - p, occ);
             if (q < 0.0) q = 0.0;
             if (q > 1.0) q = 1.0;
-            total += q * P[i];
+            total += q * pow(P[i], SCORE_EXPONENT);
         }
     }
     return llround(total);
