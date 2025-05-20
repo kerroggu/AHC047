@@ -789,31 +789,66 @@ static void anneal_matrix(const vector<string>& S, const vector<int>& P,
     int loop = 0;
     while (chrono::duration<double>(chrono::steady_clock::now() - start).count() < TL) {
         ++loop;
-        int i = rand_int(0, M - 1);
-        int j1 = rand_int(0, M - 1);
-        int j2 = rand_int(0, M - 1);
-        if (j1 == j2) continue;
-        int delta = rand_int(1, 5);
-        double elapsed = chrono::duration<double>(chrono::steady_clock::now() - start).count();
-        int lb = (elapsed > TL - 0.5) ? 0 : 1;
-        if (curA[i][j1] - delta < lb || curA[i][j2] + delta > 100) continue;
-        curA[i][j1] -= delta;
-        curA[i][j2] += delta;
-        long long sc = fast_score(S, P, L, C, curA);
-        double t = START_TEMP * pow(END_TEMP / START_TEMP,
-                                    chrono::duration<double>(chrono::steady_clock::now() - start).count() / TL);
-        if (sc > cur || rand_double() < exp((double)(sc - cur) / t)) {
-            cur = sc;
-            if (sc > best) {
-                best = sc;
-                bestA = curA;
-                if (loop >= 1000) {
-                    print_solution(C, bestA);
+        int op = rand_int(0, 1);
+        if (op == 0) {
+            int i = rand_int(0, M - 1);
+            int j1 = rand_int(0, M - 1);
+            int j2 = rand_int(0, M - 1);
+            if (j1 == j2) continue;
+            int delta = rand_int(1, 5);
+            double elapsed = chrono::duration<double>(chrono::steady_clock::now() - start).count();
+            int lb = (elapsed > TL - 0.5) ? 0 : 1;
+            if (curA[i][j1] - delta < lb || curA[i][j2] + delta > 100) continue;
+            curA[i][j1] -= delta;
+            curA[i][j2] += delta;
+            long long sc = fast_score(S, P, L, C, curA);
+            double t = START_TEMP * pow(END_TEMP / START_TEMP,
+                                        chrono::duration<double>(chrono::steady_clock::now() - start).count() / TL);
+            if (sc > cur || rand_double() < exp((double)(sc - cur) / t)) {
+                cur = sc;
+                if (sc > best) {
+                    best = sc;
+                    bestA = curA;
+                    if (loop >= 1000) {
+                        print_solution(C, bestA);
+                    }
                 }
+            } else {
+                curA[i][j1] += delta;
+                curA[i][j2] -= delta;
             }
         } else {
-            curA[i][j1] += delta;
-            curA[i][j2] -= delta;
+            int i = rand_int(0, M - 1);
+            int j1 = rand_int(0, M - 1);
+            int j2 = rand_int(0, M - 1);
+            if (j1 == j2 || i == j1 || i == j2) continue;
+            int delta = rand_int(1, 5);
+            double elapsed = chrono::duration<double>(chrono::steady_clock::now() - start).count();
+            int lb = (elapsed > TL - 0.5) ? 0 : 1;
+            if (curA[i][j1] - delta < lb || curA[i][j2] + delta > 100) continue;
+            if (curA[j2][i] - delta < lb || curA[j1][i] + delta > 100) continue;
+            curA[i][j1] -= delta;
+            curA[i][j2] += delta;
+            curA[j2][i] -= delta;
+            curA[j1][i] += delta;
+            long long sc = fast_score(S, P, L, C, curA);
+            double t = START_TEMP * pow(END_TEMP / START_TEMP,
+                                        chrono::duration<double>(chrono::steady_clock::now() - start).count() / TL);
+            if (sc > cur || rand_double() < exp((double)(sc - cur) / t)) {
+                cur = sc;
+                if (sc > best) {
+                    best = sc;
+                    bestA = curA;
+                    if (loop >= 1000) {
+                        print_solution(C, bestA);
+                    }
+                }
+            } else {
+                curA[i][j1] += delta;
+                curA[i][j2] -= delta;
+                curA[j2][i] += delta;
+                curA[j1][i] -= delta;
+            }
         }
     }
     A = bestA;
