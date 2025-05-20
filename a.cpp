@@ -593,6 +593,73 @@ static long long compute_score(const vector<string>& S, const vector<int>& P,
     return llround(total);
 }
 
+// Compute stationary distribution of transition matrix.
+static vector<double> compute_stationary(const vector<vector<int>>& A) {
+    int M = A.size();
+    vector<double> pi(M, 1.0 / M), nxt(M);
+    for (int iter = 0; iter < 200; iter++) {
+        fill(nxt.begin(), nxt.end(), 0.0);
+        for (int i = 0; i < M; i++) {
+            for (int j = 0; j < M; j++) {
+                nxt[j] += pi[i] * A[i][j] * 0.01;
+            }
+        }
+        double diff = 0.0;
+        for (int i = 0; i < M; i++) diff += fabs(nxt[i] - pi[i]);
+        pi.swap(nxt);
+        if (diff < 1e-12) break;
+    }
+    return pi;
+}
+
+// Probability that `word` appears starting at a random position.
+static double approx_word_once(const string& word, const vector<char>& C,
+                               const vector<vector<int>>& A,
+                               const vector<double>& pi) {
+    int M = C.size();
+    vector<vector<int>> by(6);
+    for (int i = 0; i < M; i++) by[C[i] - 'a'].push_back(i);
+    vector<double> dp(M, 0.0);
+    for (int s : by[word[0] - 'a']) dp[s] += pi[s];
+    for (size_t t = 1; t < word.size(); t++) {
+        vector<double> nx(M, 0.0);
+        for (int i = 0; i < M; i++) {
+            if (dp[i] == 0.0) continue;
+            for (int j : by[word[t] - 'a']) {
+                nx[j] += dp[i] * A[i][j] * 0.01;
+            }
+        }
+        dp.swap(nx);
+    }
+    double p = 0.0;
+    for (double v : dp) p += v;
+    return p;
+}
+
+// Fast approximate score using stationary distribution.
+static long long fast_score(const vector<string>& S, const vector<int>& P,
+                            long long L, const vector<char>& C,
+                            const vector<vector<int>>& A) {
+    int M = C.size();
+    for (int i = 0; i < M; i++) {
+        int sum = accumulate(A[i].begin(), A[i].end(), 0);
+        if (sum != 100) return 0;
+    }
+    vector<double> pi = compute_stationary(A);
+    double total = 0.0;
+    for (size_t i = 0; i < S.size(); i++) {
+        double p = approx_word_once(S[i], C, A, pi);
+        long long occ = L - (long long)S[i].size() + 1;
+        if (occ > 0) {
+            double q = 1.0 - pow(1.0 - p, occ);
+            if (q < 0.0) q = 0.0;
+            if (q > 1.0) q = 1.0;
+            total += q * P[i];
+        }
+    }
+    return llround(total);
+}
+
 // Convert adjacency lists to transition probabilities.
 static void adj_to_matrix(const vector<vector<int>>& adj,
                           vector<vector<int>>& A) {
@@ -678,7 +745,7 @@ static void anneal_matrix(const vector<string>& S, const vector<int>& P,
     int M = C.size();
     vector<vector<int>> curA = A;
     vector<vector<int>> bestA = A;
-    long long cur = compute_score(S, P, L, C, curA);
+    long long cur = fast_score(S, P, L, C, curA);
     long long best = cur;
 
     auto start = chrono::steady_clock::now();
@@ -692,7 +759,7 @@ static void anneal_matrix(const vector<string>& S, const vector<int>& P,
         if (curA[i][j1] - delta < 1 || curA[i][j2] + delta > 100) continue;
         curA[i][j1] -= delta;
         curA[i][j2] += delta;
-        long long sc = compute_score(S, P, L, C, curA);
+        long long sc = fast_score(S, P, L, C, curA);
         double t = START_TEMP * pow(END_TEMP / START_TEMP,
                                     chrono::duration<double>(chrono::steady_clock::now() - start).count() / TL);
         if (sc > cur || rand_double() < exp((double)(sc - cur) / t)) {
@@ -744,7 +811,7 @@ static void anneal_top4(const vector<string>& S, const vector<int>& P, long long
 
     adj_to_matrix(adj, bestA);
     bestC = C;
-    long long cur = compute_score(T, TP, L, C, bestA);
+    long long cur = fast_score(T, TP, L, C, bestA);
     long long best = cur;
 
     auto start = chrono::steady_clock::now();
@@ -784,7 +851,7 @@ static void anneal_top4(const vector<string>& S, const vector<int>& P, long long
 
         vector<vector<int>> Ak;
         adj_to_matrix(cand, Ak);
-        long long sc = compute_score(T, TP, L, C, Ak);
+        long long sc = fast_score(T, TP, L, C, Ak);
         double t = START_TEMP * pow(END_TEMP / START_TEMP,
                                     chrono::duration<double>(chrono::steady_clock::now() - start).count() / TL);
         if (sc > cur || rand_double() < exp((double)(sc - cur) / t)) {
