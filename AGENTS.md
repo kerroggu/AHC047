@@ -10,7 +10,7 @@
 
 下記の例のように実行して、テストケース0000～0014の15件の合計スコアをベンチマークとせよ。改善せよというタスクの場合はこのスコアをKPIとする。スコアが大小どちらがよいかは問題を読んで判断すること。
 
-a.out < $input_file  > $output_file 2> "$err_file
+a.out < $input_file  > $output_file 2> $err_file
 
 入力ファイル ./in/0000.txt
 出力ファイル ./out/out_0000.txt
