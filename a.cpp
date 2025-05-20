@@ -2,9 +2,17 @@
 using namespace std;
 
 const double TL = 1.95;
-static const double START_TEMP = 10.0;
-static const double END_TEMP = 0.0001;
+// Simulated annealing parameters.
+// A slightly lower starting temperature helps converge faster while still
+// accepting uphill moves early on.  The end temperature is raised a bit so the
+// search does not freeze too early.
+static const double START_TEMP = 8.0;
+static const double END_TEMP = 0.001;
 static const double SCORE_EXPONENT = 1.5;
+
+// Maximum probability delta used when modifying transition matrices during
+// annealing.  Increasing this value allows larger jumps in the search space.
+static const int DELTA_MAX = 10;
 static std::mt19937 rng(123456789);
 static inline double rand_double(){ return std::uniform_real_distribution<double>(0.0,1.0)(rng); }
 static inline int rand_int(int l,int r){ return std::uniform_int_distribution<int>(l,r)(rng); }
@@ -796,7 +804,7 @@ static void anneal_matrix(const vector<string>& S, const vector<int>& P,
             int j1 = rand_int(0, M - 1);
             int j2 = rand_int(0, M - 1);
             if (j1 == j2) continue;
-            int delta = rand_int(1, 5);
+            int delta = rand_int(1, DELTA_MAX);
             double elapsed = chrono::duration<double>(chrono::steady_clock::now() - start).count();
             int lb = (elapsed > TL - 0.5) ? 0 : 1;
             if (curA[i][j1] - delta < lb || curA[i][j2] + delta > 100) continue;
@@ -823,7 +831,7 @@ static void anneal_matrix(const vector<string>& S, const vector<int>& P,
             int j1 = rand_int(0, M - 1);
             int j2 = rand_int(0, M - 1);
             if (j1 == j2 || i == j1 || i == j2) continue;
-            int delta = rand_int(1, 5);
+            int delta = rand_int(1, DELTA_MAX);
             double elapsed = chrono::duration<double>(chrono::steady_clock::now() - start).count();
             int lb = (elapsed > TL - 0.5) ? 0 : 1;
             if (curA[i][j1] - delta < lb || curA[i][j2] + delta > 100) continue;
