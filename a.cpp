@@ -692,51 +692,75 @@ static void adj_to_matrix(const vector<vector<int>>& adj,
 }
 
 // Build initial 12-state automaton from the top two strings.
-static void build_initial_two(const string& s1, const string& s2,
-                              vector<char>& C, vector<vector<int>>& A) {
-    int M = C.size();
-    auto assign = [&](const string& s, int start) {
-        int L = s.size();
-        vector<int> char_to_state(6, -1);
-        for (int i = 0; i < 6; i++) {
-            char ch = s[i % L];
-            C[start + i] = ch;
-            if (char_to_state[ch - 'a'] == -1) char_to_state[ch - 'a'] = start + i;
-        }
-        vector<vector<char>> nxt(6);
-        for (int i = 0; i < L; i++) {
+// Build initial 12-state automaton with fixed letters "abcdefabcdef" using the
+// top two strings. States [0,5] correspond to the first string and [6,11] to
+// the second. Transitions try to follow each string while allowing 1% jumps to
+// the other string's start.
+static void build_fixed_two(const string& s1, const string& s2,
+                            vector<char>& C, vector<vector<int>>& A) {
+    const string letters = "abcdefabcdef";
+    const int M = C.size();
+    for (int i = 0; i < M && i < (int)letters.size(); i++) {
+        C[i] = letters[i];
+    }
+
+    auto assign = [&](const string& s, int start, int other_first) {
+        vector<char> states(6);
+        for (int i = 0; i < 6; i++) states[i] = C[start + i];
+        vector<int> char_to_state(6);
+        for (int i = 0; i < 6; i++) char_to_state[states[i] - 'a'] = start + i;
+
+        vector<set<char>> nxt(6);
+        for (size_t i = 0; i < s.size(); i++) {
             char cur = s[i];
-            char nx = s[(i + 1) % L];
-            if (find(nxt[cur - 'a'].begin(), nxt[cur - 'a'].end(), nx) == nxt[cur - 'a'].end())
-                nxt[cur - 'a'].push_back(nx);
+            char nx = s[(i + 1) % s.size()];
+            nxt[cur - 'a'].insert(nx);
         }
+
         for (int i = 0; i < 6; i++) {
             int idx = start + i;
-            char c = C[idx];
-            vector<int> dest;
-            for (char nx : nxt[c - 'a']) {
-                int st = char_to_state[nx - 'a'];
-                if (st != -1) dest.push_back(st);
-            }
-            if (dest.empty()) dest.push_back(idx);
             vector<int> row(M, 0);
-            vector<int> others;
-            for (int j = 0; j < M; j++) {
-                if (find(dest.begin(), dest.end(), j) == dest.end()) {
-                    row[j] = 1;
-                    others.push_back(j);
-                }
+
+            // 1% chance to jump to the beginning of the other string.
+            row[other_first] = 1;
+            int remaining = 99;
+
+            char c = states[i];
+            vector<char> options(nxt[c - 'a'].begin(), nxt[c - 'a'].end());
+            int k = options.size();
+            int prob = 0;
+            if (k == 1) prob = 41;
+            else if (k == 2) prob = 41;
+            else if (k == 3) prob = 33;
+            else if (k > 0) prob = 99 / k;
+            for (int t = 0; t < k; t++) {
+                int dest = char_to_state[options[t] - 'a'];
+                row[dest] += prob;
+                remaining -= prob;
             }
-            int base = others.size();
-            int rem = 100 - base;
-            int k = dest.size();
-            for (int t = 0; t < k; t++) row[dest[t]] += rem / k;
-            for (int t = 0; t < rem % k; t++) row[dest[t]] += 1;
+
+            vector<int> dest_idx;
+            for (char ch : options) dest_idx.push_back(char_to_state[ch - 'a']);
+            vector<int> others;
+            for (int j = 0; j < 6; j++) {
+                int id = start + j;
+                if (j == i) continue;
+                if (find(dest_idx.begin(), dest_idx.end(), id) != dest_idx.end()) continue;
+                others.push_back(id);
+            }
+            if (others.empty()) others.push_back(start);
+            int m = others.size();
+            for (int t = 0; t < m; t++) {
+                row[others[t]] += remaining / m;
+                if (t < remaining % m) row[others[t]] += 1;
+            }
+
             A[idx] = row;
         }
     };
-    assign(s1, 0);
-    assign(s2, 6);
+
+    assign(s1, 0, 6);
+    assign(s2, 6, 0);
 }
 
 // Simulated annealing on transition matrix probabilities.
@@ -885,7 +909,7 @@ int main() {
 
     vector<char> C(M);
     vector<vector<int>> A(M, vector<int>(M, 0));
-    build_initial_two(S[idx1], S[idx2], C, A);
+    build_fixed_two(S[idx1], S[idx2], C, A);
 
     anneal_matrix(S, P, L, C, A);
 
