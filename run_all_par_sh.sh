@@ -1,9 +1,12 @@
 #!/bin/bash
 
-g++ a.cpp -o a.out -std=c++17 -O2 -Wall
+# Always work relative to the location of this script
+cd "$(dirname "$0")"
+
+# Build the solver
+g++ a.cpp -o a.out -std=c++20 -O2 -Wall
 
 # --- 設定 (以前のスクリプトと同様) ---
-cd "$(dirname "$0")"
 CPP_EXECUTABLE="./a.out"
 TESTER_EXECUTABLE="./tester.exe"
 INPUT_DIR="./in"
@@ -29,15 +32,15 @@ echo "Starting tests with up to $MAX_JOBS parallel jobs..."
 
 # --- テストケース番号のリストを生成 ---
 find "$INPUT_DIR" -maxdepth 1 -name '????.txt' -printf '%f\n' | sed 's/\.txt$//' | sort | head -n 15 | \
-xargs -I {} -P "$MAX_JOBS" \
+xargs -P "$MAX_JOBS" -I{} \
 bash -c '
-    filenum="{}"  # xargsから渡されたファイル番号
-    input_file="'"$INPUT_DIR"'/$filenum.txt"
-    output_file="'"$OUTPUT_DIR"'/out$filenum.txt"
-    err_file="'"$ERR_DIR"'/err$filenum.txt"  # エラーログファイルを設定
-    cpp_exec="'"$CPP_EXECUTABLE"'"
-    tester_exec="'"$TESTER_EXECUTABLE"'"
-    score_file="'"$SCORE_FILE"'"
+    filenum="$1"  # xargsから渡されたファイル番号
+    input_file="'$INPUT_DIR'/$filenum.txt"
+    output_file="'$OUTPUT_DIR'/out_$filenum.txt"
+    err_file="'$ERR_DIR'/err_$filenum.txt"  # エラーログファイルを設定
+    cpp_exec="'$CPP_EXECUTABLE'"
+    tester_exec="'$TESTER_EXECUTABLE'"
+    score_file="'$SCORE_FILE'"
 
     echo "Starting test case $filenum..."
 
@@ -63,7 +66,7 @@ bash -c '
     if [ $status -eq 0 ] && [ ! -s "$output_file" ]; then
         echo "Warning: Output file '"$output_file"' is empty for test case $filenum." >&2
     fi
-'
+' _ {}
 
 echo "All test cases finished processing. Scores saved in $SCORE_FILE"
 
