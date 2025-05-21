@@ -929,12 +929,12 @@ int main() {
     vector<int> ord(N);
     iota(ord.begin(), ord.end(), 0);
     sort(ord.begin(), ord.end(), [&](int a, int b) { return P[a] > P[b]; });
-    int idx1 = ord[0];
-    int idx2 = ord.size() >= 2 ? ord[1] : ord[0];
-
     vector<char> C(M);
     vector<vector<int>> A(M, vector<int>(M, 0));
-    build_fixed_two(S[idx1], S[idx2], C, A);
+
+    // Embed the top four strings sequentially to guarantee that
+    // each of them has a valid path in the initial automaton.
+    build_ordered_embed_k(S, ord, std::min(4, N), 41, C, A);
 
     anneal_matrix(S, P, L, C, A);
 
