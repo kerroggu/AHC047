@@ -774,6 +774,18 @@ static void anneal_matrix(const vector<string>& S, const vector<int>& P,
     long long cur = fast_score(S, P, L, C, curA);
     long long best = cur;
 
+    // indices of states grouped by character for quick path generation
+    vector<vector<int>> by(6);
+    for (int i = 0; i < M; i++) by[C[i] - 'a'].push_back(i);
+
+    // indices of the strings sorted by score (descending)
+    vector<int> ord(S.size());
+    iota(ord.begin(), ord.end(), 0);
+    sort(ord.begin(), ord.end(), [&](int a, int b) { return P[a] > P[b]; });
+    int top_k = min(7, (int)S.size());
+    vector<int> top(top_k);
+    for (int i = 0; i < top_k; i++) top[i] = ord[i];
+
     auto print_solution = [&](const vector<char>& C, const vector<vector<int>>& A) {
         for (int i = 0; i < M; i++) {
             cout << C[i];
@@ -790,18 +802,59 @@ static void anneal_matrix(const vector<string>& S, const vector<int>& P,
     int loop = 0;
     while (chrono::duration<double>(chrono::steady_clock::now() - start).count() < TL) {
         ++loop;
-        int i = rand_int(0, M - 1);
-        int j1 = rand_int(0, M - 1);
-        int j2 = rand_int(0, M - 1);
-        if (j1 == j2) continue;
-        int delta = rand_int(1, 5);
         double elapsed = chrono::duration<double>(chrono::steady_clock::now() - start).count();
         int lb = (elapsed > TL - 0.7) ? 0 : 1;
-        //qpow = 0.4 + (1.0 - 0.4) * elapsed / 2.0;
-        int qpow = (elapsed > TL - 0.5) ? 0.4 : 1;
-        if (curA[i][j1] - delta < lb || curA[i][j2] + delta > 100) continue;
-        curA[i][j1] -= delta;
-        curA[i][j2] += delta;
+
+        vector<tuple<int,int,int,int>> ops; // modifications for potential revert
+
+        bool used_path = false;
+        if (rand_int(0, 4) == 0) { // 20% chance to modify along a top string path
+            const string& word = S[top[rand_int(0, top_k - 1)]];
+            vector<int> path(word.size(), -1);
+            bool ok = true;
+            for (size_t t = 0; t < word.size(); t++) {
+                int cidx = word[t] - 'a';
+                if (by[cidx].empty()) { ok = false; break; }
+                path[t] = by[cidx][rand_int(0, by[cidx].size() - 1)];
+            }
+            if (ok) {
+                for (size_t t = 0; t + 1 < path.size(); t++) {
+                    int row = path[t];
+                    int to = path[t + 1];
+                    int delta = 1;
+                    vector<int> cand;
+                    for (int j = 0; j < M; j++) if (j != to && curA[row][j] > lb) cand.push_back(j);
+                    if (cand.empty()) { ok = false; break; }
+                    int from = cand[rand_int(0, cand.size() - 1)];
+                    if (curA[row][from] - delta < lb || curA[row][to] + delta > 100) { ok = false; break; }
+                    curA[row][from] -= delta;
+                    curA[row][to] += delta;
+                    ops.emplace_back(row, from, to, delta);
+                }
+            }
+            if (ok) used_path = true;
+            else {
+                for (auto it = ops.rbegin(); it != ops.rend(); ++it) {
+                    auto [row, from, to, d] = *it;
+                    curA[row][from] += d;
+                    curA[row][to] -= d;
+                }
+                ops.clear();
+            }
+        }
+
+        if (!used_path) {
+            int i = rand_int(0, M - 1);
+            int j1 = rand_int(0, M - 1);
+            int j2 = rand_int(0, M - 1);
+            if (j1 == j2) continue;
+            int delta = rand_int(1, 5);
+            if (curA[i][j1] - delta < lb || curA[i][j2] + delta > 100) continue;
+            curA[i][j1] -= delta;
+            curA[i][j2] += delta;
+            ops.emplace_back(i, j1, j2, delta);
+        }
+
         long long sc = fast_score(S, P, L, C, curA);
         double t = START_TEMP * pow(END_TEMP / START_TEMP,
                                     chrono::duration<double>(chrono::steady_clock::now() - start).count() / TL);
@@ -815,8 +868,11 @@ static void anneal_matrix(const vector<string>& S, const vector<int>& P,
                 }
             }
         } else {
-            curA[i][j1] += delta;
-            curA[i][j2] -= delta;
+            for (auto it = ops.rbegin(); it != ops.rend(); ++it) {
+                auto [row, from, to, d] = *it;
+                curA[row][from] += d;
+                curA[row][to] -= d;
+            }
         }
     }
     A = bestA;
