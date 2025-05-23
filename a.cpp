@@ -2,8 +2,8 @@
 using namespace std;
 
 const double TL = 1.95;
-static const double START_TEMP = 10.0;
-static const double END_TEMP = 0.0001;
+static const double START_TEMP = 100.0;
+static const double END_TEMP = 0.1;
 static std::mt19937 rng(123456789);
 static inline double rand_double(){ return std::uniform_real_distribution<double>(0.0,1.0)(rng); }
 static inline int rand_int(int l,int r){ return std::uniform_int_distribution<int>(l,r)(rng); }
