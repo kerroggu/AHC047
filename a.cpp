@@ -3,7 +3,7 @@ using namespace std;
 
 const double TL = 1.95;
 static const double START_TEMP = 100.0;
-static const double END_TEMP = 0.1;
+static const double END_TEMP = 0.01;
 static std::mt19937 rng(123456789);
 static inline double rand_double(){ return std::uniform_real_distribution<double>(0.0,1.0)(rng); }
 static inline int rand_int(int l,int r){ return std::uniform_int_distribution<int>(l,r)(rng); }
@@ -782,7 +782,7 @@ static void anneal_matrix(const vector<string>& S, const vector<int>& P,
     vector<int> ord(S.size());
     iota(ord.begin(), ord.end(), 0);
     sort(ord.begin(), ord.end(), [&](int a, int b) { return P[a] > P[b]; });
-    int top_k = min(7, (int)S.size());
+    int top_k = min(8, (int)S.size());
     vector<int> top(top_k);
     for (int i = 0; i < top_k; i++) top[i] = ord[i];
 
@@ -803,7 +803,7 @@ static void anneal_matrix(const vector<string>& S, const vector<int>& P,
     while (chrono::duration<double>(chrono::steady_clock::now() - start).count() < TL) {
         ++loop;
         double elapsed = chrono::duration<double>(chrono::steady_clock::now() - start).count();
-        int lb = (elapsed > TL - 0.7) ? 0 : 1;
+        int lb = (elapsed > TL - 0.7) ? 0 : 3;
 
         vector<tuple<int,int,int,int>> ops; // modifications for potential revert
 
@@ -863,7 +863,7 @@ static void anneal_matrix(const vector<string>& S, const vector<int>& P,
             if (sc > best) {
                 best = sc;
                 bestA = curA;
-                if (loop >= 1000) {
+                if (loop >= 1000 && loop%10==0) {
                     print_solution(C, bestA);
                 }
             }
