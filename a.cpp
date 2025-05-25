@@ -765,68 +765,6 @@ static void build_fixed_two(const string& s1, const string& s2,
     assign(s2, 6, 0);
 }
 
-// Build an automaton from weighted bigram frequencies of all strings.
-static void build_bigram_weighted(const vector<string>& S, const vector<int>& P,
-                                  vector<char>& C, vector<vector<int>>& A) {
-    const string letters = "abcdefabcdef";
-    int M = C.size();
-    for (int i = 0; i < M && i < (int)letters.size(); i++) C[i] = letters[i];
-
-    vector<int> first(6, -1);
-    for (int i = 0; i < M; i++) if (first[C[i] - 'a'] == -1) first[C[i] - 'a'] = i;
-
-    vector<vector<double>> freq(6, vector<double>(6, 1e-6));
-    for (size_t idx = 0; idx < S.size(); idx++) {
-        const string& w = S[idx];
-        int sc = P[idx];
-        int L = w.size();
-        for (int i = 0; i < L; i++) {
-            int a = w[i] - 'a';
-            int b = w[(i + 1) % L] - 'a';
-            freq[a][b] += sc;
-        }
-    }
-
-    A.assign(M, vector<int>(M, 0));
-    for (int i = 0; i < M; i++) {
-        int ch = C[i] - 'a';
-        double sum = 0.0;
-        for (int j = 0; j < 6; j++) sum += freq[ch][j];
-        if (sum == 0.0) sum = 1.0;
-
-        vector<pair<double,int>> ord;
-        for (int j = 0; j < 6; j++) ord.push_back({freq[ch][j]/sum, j});
-        sort(ord.begin(), ord.end(), [&](auto& x, auto& y){ return x.first > y.first; });
-
-        vector<int> row(M, 0);
-        vector<double> frac(6, 0.0);
-        int assigned = 0;
-        for (int t = 0; t < 6; t++) {
-            int letter = ord[t].second;
-            int dest = first[letter];
-            if (dest == -1) continue;
-            double prob = ord[t].first * 99.0;
-            int ip = (int)prob;
-            row[dest] += ip;
-            assigned += ip;
-            frac[t] = prob - ip;
-        }
-        int rem = 99 - assigned;
-        vector<int> idxs(6); iota(idxs.begin(), idxs.end(), 0);
-        sort(idxs.begin(), idxs.end(), [&](int a,int b){ return frac[a] > frac[b]; });
-        for (int k = 0; k < rem; k++) {
-            int letter = ord[idxs[k]].second;
-            int dest = first[letter];
-            if (dest != -1) row[dest] += 1;
-        }
-        int s = accumulate(row.begin(), row.end(), 0);
-        int final_rem = 100 - s;
-        for (int j = 0; j < M; j++) row[j] += final_rem / M;
-        for (int j = 0; j < final_rem % M; j++) row[j]++;
-        A[i] = row;
-    }
-}
-
 // Simulated annealing on transition matrix probabilities.
 static void anneal_matrix(const vector<string>& S, const vector<int>& P,
                           long long L, vector<char>& C, vector<vector<int>>& A) {
@@ -1044,9 +982,15 @@ int main() {
     vector<int> P(N);
     for (int i = 0; i < N; i++) cin >> S[i] >> P[i];
 
+    vector<int> ord(N);
+    iota(ord.begin(), ord.end(), 0);
+    sort(ord.begin(), ord.end(), [&](int a, int b) { return P[a] > P[b]; });
+    int idx1 = ord[0];
+    int idx2 = ord.size() >= 2 ? ord[1] : ord[0];
+
     vector<char> C(M);
     vector<vector<int>> A(M, vector<int>(M, 0));
-    build_bigram_weighted(S, P, C, A);
+    build_fixed_two(S[idx1], S[idx2], C, A);
 
     anneal_matrix(S, P, L, C, A);
 
