@@ -4,7 +4,7 @@
 cd "$(dirname "$0")"
 
 # Build the solver
-g++ a.cpp -o a.out -std=c++20 -O2 -Wall
+g++ edge_30.cpp -o a.out -std=c++20 -O2 -Wall
 
 # --- 設定 (以前のスクリプトと同様) ---
 CPP_EXECUTABLE="./a.out"
@@ -50,16 +50,19 @@ bash -c '
 
     status=$?  # wsl コマンドの終了ステータス
 
-    # スコアファイルに結果を追記
+    # Compute score using Python scorer
     if [ $status -ne 0 ]; then
-        echo "Case $filenum: Tester Failed (status: $status)" >> "$score_file"
-        echo "Test case $filenum Failed (tester exited with status: $status)"
-    elif grep -q "^Best" "$err_file"; then
-        grep "^Best" "$err_file" | sed "s/^/Case $filenum: /" >> "$score_file"
-        echo "Test case $filenum Done."
+        echo "Case $filenum: Solver Failed (status: $status)" >> "$score_file"
+        echo "Test case $filenum Failed (solver exited with status: $status)"
     else
-        echo "Case $filenum: Failed (No Score line found)" >> "$score_file"
-        echo "Test case $filenum Failed (No Score line found)"
+        score=$(python3 compute_score.py "$input_file" "$output_file" 2>> "$err_file")
+        if [ $? -ne 0 ]; then
+            echo "Case $filenum: Scoring Failed" >> "$score_file"
+            echo "Test case $filenum Scoring Failed"
+        else
+            echo "Case $filenum: Score = $score" >> "$score_file"
+            echo "Test case $filenum Done."
+        fi
     fi
 
     # 出力ファイルが空でないか確認
