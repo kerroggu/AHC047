@@ -11,3 +11,4 @@
 - Found probability 0 bug for second-best string because transitions with more than 3 options were truncated. Updated build() to keep all options and distribute 99/k when k>3.
 - Added anneal_matrix move that boosts probabilities along a random path for one of top 7 strings.
 - Implemented weighted bigram initialization and updated solver (score 716385).
+- Added simple enumeration solver b.cpp choosing between two top strings for each state. Score ~725k on sample.
