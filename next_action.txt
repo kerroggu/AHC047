@@ -13,3 +13,4 @@
 - Implemented weighted bigram initialization and updated solver (score 716385).
 - Added simple enumeration solver b.cpp choosing between two top strings for each state. Score ~725k on sample.
 - Implemented simple edge-limited solver edge_30.cpp selecting top 30 letter transitions by weighted frequency. Total score ~32k.
+- Added greedy edge selection solver in b.cpp using up to 30 edges starting from best word.

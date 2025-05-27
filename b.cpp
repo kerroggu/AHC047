@@ -75,6 +75,28 @@ static void adj_to_matrix(const vector<vector<int>>& adj, vector<vector<int>>& A
     }
 }
 
+static void edges_to_matrix(const vector<char>& C,
+                            const vector<vector<int>>& pos,
+                            const set<pair<int,int>>& edges,
+                            vector<vector<int>>& A){
+    int M=C.size();
+    A.assign(M, vector<int>(M,0));
+    for(int i=0;i<M;i++){
+        int from=C[i]-'a';
+        vector<int> dests;
+        for(int v=0; v<6; v++) if(edges.count({from,v})){
+            for(int to: pos[v]) dests.push_back(to);
+        }
+        if(dests.empty()){
+            A[i][i]=100;
+        }else{
+            int k=dests.size();
+            for(int idx=0; idx<k; idx++) A[i][dests[idx]]=100/k;
+            for(int idx=0; idx<100%k; idx++) A[i][dests[idx]]++;
+        }
+    }
+}
+
 int main(){
     ios::sync_with_stdio(false);
     cin.tie(nullptr);
@@ -84,11 +106,6 @@ int main(){
     vector<string> S(N); vector<int> P(N);
     for(int i=0;i<N;i++) cin>>S[i]>>P[i];
 
-    vector<int> ord(N); iota(ord.begin(),ord.end(),0);
-    sort(ord.begin(),ord.end(),[&](int a,int b){ return P[a]>P[b]; });
-    string s1=S[ord[0]];
-    string s2=S[ord.size()>=2?ord[1]:ord[0]];
-
     const string letters="abcdefabcdef";
     vector<char> C(M);
     for(int i=0;i<M;i++) C[i]=letters[i%letters.size()];
@@ -96,36 +113,46 @@ int main(){
     vector<vector<int>> pos(6);
     for(int i=0;i<M;i++) pos[C[i]-'a'].push_back(i);
 
-    auto next_char=[&](const string& s,char c){
-        for(size_t i=0;i<s.size();i++) if(s[i]==c) return s[(i+1)%s.size()];
-        return c;
-    };
+    vector<pair<int,int>> allEdges;
+    for(int u=0;u<6;u++) for(int v=0;v<6;v++) allEdges.push_back({u,v});
 
-    vector<int> dest1(M), dest2(M);
-    for(int i=0;i<M;i++){
-        char c=C[i];
-        char n1=next_char(s1,c);
-        char n2=next_char(s2,c);
-        dest1[i]=pos[n1-'a'][0];
-        if(pos[n2-'a'].size()>1) dest2[i]=pos[n2-'a'][1];
-        else dest2[i]=pos[n2-'a'][0];
+    // start with edges from the best scoring word
+    int best_idx=max_element(P.begin(), P.end())-P.begin();
+    const string& base=S[best_idx];
+    set<pair<int,int>> used;
+    for(size_t i=0;i<base.size();i++){
+        int u=base[i]-'a';
+        int v=base[(i+1)%base.size()]-'a';
+        used.insert({u,v});
     }
-
     vector<vector<int>> bestA;
     long long bestScore=-1;
-    for(int mask=0; mask<(1<<M); mask++){
-        vector<vector<int>> adj(M);
-        for(int i=0;i<M;i++){
-            int d=(mask>>i)&1 ? dest2[i] : dest1[i];
-            adj[i].push_back(d);
+
+    // initial score with no edges (all self loops)
+    edges_to_matrix(C,pos,used,bestA);
+    bestScore=fast_score(S,P,L,C,bestA);
+
+    for(int step=0; step<30; step++){
+        long long curBest=bestScore;
+        vector<vector<int>> curA=bestA;
+        pair<int,int> bestEdge={-1,-1};
+        for(auto e: allEdges){
+            if(used.count(e)) continue;
+            set<pair<int,int>> cand=used;
+            cand.insert(e);
+            vector<vector<int>> A;
+            edges_to_matrix(C,pos,cand,A);
+            long long sc=fast_score(S,P,L,C,A);
+            if(sc>curBest){
+                curBest=sc;
+                curA.swap(A);
+                bestEdge=e;
+            }
         }
-        vector<vector<int>> A;
-        adj_to_matrix(adj,A);
-        long long sc=fast_score(S,P,L,C,A);
-        if(sc>bestScore){
-            bestScore=sc;
-            bestA=A;
-        }
+        if(bestEdge.first==-1) break;
+        used.insert(bestEdge);
+        bestScore=curBest;
+        bestA=curA;
     }
 
     cerr<<"Best Score = "<<bestScore<<"\n";
