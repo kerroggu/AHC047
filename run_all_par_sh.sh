@@ -4,7 +4,7 @@
 cd "$(dirname "$0")"
 
 # Build the solver
-g++ edge_product.cpp -o a.out -std=c++20 -O2 -Wall
+g++ edge_product_sa.cpp -o a.out -std=c++20 -O2 -Wall
 
 # --- 設定 (以前のスクリプトと同様) ---
 CPP_EXECUTABLE="./a.out"
